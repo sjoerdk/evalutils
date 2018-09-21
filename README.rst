@@ -5,6 +5,9 @@ evalutils
 .. image:: https://badge.fury.io/py/evalutils.svg
     :target: https://badge.fury.io/py/evalutils
 
+.. image:: http://pepy.tech/badge/evalutils
+    :target: http://pepy.tech/project/evalutils
+
 .. image:: https://travis-ci.org/comic/evalutils.svg?branch=master
     :target: https://travis-ci.org/comic/evalutils
 
