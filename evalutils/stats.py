@@ -147,7 +147,7 @@ def distance_transform_edt_float32(
 
         c_indices = np.indices((1,) + input_shape[1:], dtype=dt.dtype)
         for c in range(input_shape[0]):
-            dt[:, c : (c + 1)] -= c_indices  # noqa: E203
+            dt[:, c : (c + 1)] -= c_indices
             c_indices[0] += 1
 
         dt = dt.astype(np.float32, copy=False)
