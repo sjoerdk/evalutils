@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 import logging
+import operator
 import re
 from abc import ABC, abstractmethod
+from functools import reduce
+from os.path import isfile
 from pathlib import Path
 from typing import Union, Dict, List
 
+from PIL import Image
 from SimpleITK import ReadImage, GetArrayFromImage
 from imageio import imread
 from pandas import read_csv
@@ -87,6 +91,7 @@ class ImageLoader(FileLoader):
     all be loaded into memory, so score_case needs to load them again later
     via load_image.
     """
+
     def load(self, *, fname: Path):
         try:
             img = self.load_image(fname)
@@ -129,6 +134,58 @@ class ImageLoader(FileLoader):
         """
         raise NotImplementedError
 
+    @staticmethod
+    def equalize(image: Image):
+        """
+        Equalize an image, based on
+        http://effbot.org/zone/pil-histogram-equalization.htm
+
+        Parameters
+        ----------
+        image
+            The image that will be equalized
+
+        Returns
+        -------
+            The equalized image
+
+        """
+
+        hist = image.histogram()
+
+        lut = []
+
+        for bin in range(0, len(hist), 256):
+
+            # step size
+            step = reduce(operator.add, hist[bin : bin + 256]) / 255
+
+            # create equalization lookup table
+            n = 0
+            for i in range(256):
+                lut.append(n / step)
+                n = n + hist[i + bin]
+
+        return image.point(lut)
+
+    def generate_thumbnail(
+        self, *, fname: Path, height: int = 64, format: str = "JPEG"
+    ):
+        """
+        Generates a thumbnail for the given file, appending .{width}.thumb to
+        the filename.
+
+        Parameters
+        ----------
+        fname
+            The path to the image
+        height
+            The maximum height of the thumbnail in pixels
+        format
+            The format of the thumbnail
+        """
+        raise NotImplementedError
+
 
 class ImageIOLoader(ImageLoader):
     @staticmethod
@@ -139,6 +196,15 @@ class ImageIOLoader(ImageLoader):
     def hash_image(image):
         return hash(image.tostring())
 
+    def generate_thumbnail(self, *, fname, height=64, format="JPEG"):
+        output = f"{fname}.{height}.thumb"
+        if not isfile(output):
+            im = Image.fromarray(self.load_image(fname=fname))
+            im = im.convert("L")  # convert to greyscale
+            im.thumbnail((float("inf"), height), Image.ANTIALIAS)
+            im = self.equalize(im)
+            im.save(output, format=format)
+
 
 class SimpleITKLoader(ImageLoader):
     @staticmethod
@@ -148,6 +214,33 @@ class SimpleITKLoader(ImageLoader):
     @staticmethod
     def hash_image(image):
         return hash(GetArrayFromImage(image).tostring())
+
+    def generate_thumbnail(self, *, fname, height=64, format="JPEG"):
+        output = f"{fname}.{height}.thumb"
+        if not isfile(output):
+            imarray = GetArrayFromImage(self.load_image(fname=fname))
+
+            thumbs = []
+
+            for dim in range(imarray.ndim):
+                slices = [slice(x) for x in imarray.shape]
+                slices[dim] = round(imarray.shape[dim] / 2)
+
+                im = Image.fromarray(imarray[slices])
+                im = im.convert("L")  # convert to greyscale
+                im.thumbnail((float("inf"), height), Image.ANTIALIAS)
+
+                thumbs.append(im)
+
+            combined = Image.new("L", (sum(x.width for x in thumbs), height))
+
+            start = 0
+            for thumb in thumbs:
+                combined.paste(thumb, (start, 0))
+                start += thumb.width
+
+            combined = self.equalize(combined)
+            combined.save(output, format=format)
 
 
 class CSVLoader(FileLoader):

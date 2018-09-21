@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 from distutils.util import strtobool
+from os.path import isfile
 from pathlib import Path
 
 import pytest
@@ -96,3 +97,34 @@ def test_itk_loader():
 
     with pytest.raises(FileLoaderError):
         SimpleITKLoader().load(fname=fname.with_name(f"{fname.stem}.zraw"))
+
+def test_thumbnail_generation_imageio():
+    fname = (
+        Path(__file__).parent / "resources" / "images" / "1_mask.png"
+    )
+
+    loader = ImageIOLoader()
+
+    assert not isfile(f"{fname}.64.thumb")
+
+    loader.generate_thumbnail(fname=fname)
+
+    assert isfile(f"{fname}.64.thumb")
+
+    os.remove(f"{fname}.64.thumb")
+
+
+def test_thumbnail_generation_simpleitk():
+    fname = (
+        Path(__file__).parent / "resources" / "itk" / "1.0.000.000000.0.00.0.0000000000.0000.0000000000.000.mhd"
+    )
+
+    loader = SimpleITKLoader()
+
+    assert not isfile(f"{fname}.64.thumb")
+
+    loader.generate_thumbnail(fname=fname)
+
+    assert isfile(f"{fname}.64.thumb")
+    
+    os.remove(f"{fname}.64.thumb")
